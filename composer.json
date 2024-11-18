@@ -1,0 +1,24 @@
+{
+    "name": "myst-nov/core.onefxea",
+    "description": "OnefxEA project's core",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "MystNov\\Core\\": "src/",
+            "MystNov\\Core\\Database\\Factories\\": "database/factories",
+            "MystNov\\Core\\Database\\Seeders\\": "database/seeders"
+        },
+        "files": [
+            "src/Http/Helpers/Autoload.php"
+        ]
+    },
+    "authors": [
+        {
+            "name": "Myst November",
+            "email": "myst.nov@proton.me"
+        }
+    ],
+    "minimum-stability": "dev",
+    "require": {}
+}
