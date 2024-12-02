@@ -2,11 +2,15 @@
 
 namespace MystNov\Core\Models;
 
+use Illuminate\Support\Facades\Auth;
+
 class OTP extends Model
 {
     protected $connection = 'mysql_main';
 
     protected $table = 'otps';
+
+    const UPDATED_AT = null;
 
     /**
      * The attributes that are mass assignable.
@@ -17,4 +21,20 @@ class OTP extends Model
         'token',
         'member_id',
     ];
+
+    /**
+     * Relationship to members table by member_id
+     */
+    public function member()
+    {
+        return $this->hasOne(Member::class, 'id', 'member_id');
+    }
+
+    public static function create(array $attributes = [])
+    {
+        $attributes['token'] = bcrypt($attributes['token']);
+        $attributes['member_id'] = $attributes['member_id'] ?? Auth::user()->id;
+
+        return static::query()->create($attributes);
+    }
 }
