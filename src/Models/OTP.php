@@ -20,6 +20,7 @@ class OTP extends Model
     protected $fillable = [
         'token',
         'member_id',
+        'verification_url'
     ];
 
     /**
@@ -34,6 +35,7 @@ class OTP extends Model
     {
         $attributes['token'] = bcrypt($attributes['token']);
         $attributes['member_id'] = $attributes['member_id'] ?? Auth::user()->id;
+        $attributes['verification_url'] = $attributes['verification_url'] ?? url()->current();
 
         return static::query()->create($attributes);
     }
