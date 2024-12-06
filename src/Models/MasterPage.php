@@ -80,7 +80,7 @@ class MasterPage extends Model
         return is_null($this->locked_at) ? false : true;
     }
 
-    public function getnNetworkSurplusPointsRecipientLabelAttribute()
+    public function getNetworkSurplusPointsRecipientLabelAttribute()
     {
         return NetworkSurplusPointsRecipient::options()[$this->network_surplus_points_recipient];
     }
