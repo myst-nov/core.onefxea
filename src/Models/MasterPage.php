@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Request;
+use MystNov\Core\Enums\NetworkSurplusPointsRecipient;
 
 class MasterPage extends Model
 {
@@ -77,6 +78,11 @@ class MasterPage extends Model
     public function getIsLockedAttribute()
     {
         return is_null($this->locked_at) ? false : true;
+    }
+
+    public function getnNetworkSurplusPointsRecipientLabelAttribute()
+    {
+        return NetworkSurplusPointsRecipient::options()[$this->network_surplus_points_recipient];
     }
 
     /**
