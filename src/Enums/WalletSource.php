@@ -10,6 +10,9 @@ enum WalletSource: string
     case GET_COMMISSION = 'get_commission'; // Member Wallet
     case SEND_COMMISSION = 'send_commission'; // System & Master Wallet
 
+    case GET_SURPLUS = 'get_surplus'; // System Wallet
+    case SEND_SURPLUS = 'send_surplus'; // Master Wallet
+
     case GET_REFUND = 'get_refund'; // Member Wallet
     case SEND_REFUND = 'send_refund'; // System & Master Wallet => REMOVE
 
@@ -31,6 +34,9 @@ enum WalletSource: string
 
             self::GET_COMMISSION  => 'Receive Commission Points From Network\'s Member',
             self::SEND_COMMISSION => 'Share Commission To Network\'s Member',
+
+            self::GET_SURPLUS => 'Get Surplus Point from Master Wallet',
+            self::SEND_SURPLUS => 'Send Surplus Point to System Wallet',
 
             self::GET_REFUND  => 'Refund From Order',
             self::SEND_REFUND => 'Refund For Member From Order',

@@ -4,6 +4,7 @@ namespace MystNov\Core\Http\Traits;
 
 use App\Support\Facades\MasterPage as FacadesMasterPage;
 use Carbon\Carbon;
+use MystNov\Core\Enums\NetworkSurplusPointsRecipient;
 use MystNov\Core\Enums\OptionName;
 use MystNov\Core\Enums\OrderStatus;
 use MystNov\Core\Enums\PointOrderPaymentMethod;
@@ -114,8 +115,8 @@ trait OrderTrait
                 // Lưu lịch sử mua hàng
                 $mp->orders()->syncWithoutDetaching([$order->id]);
             }
-        } 
-        
+        }
+
         // Trường hợp mua sản phẩm từ System
         // Tạo thông tin sản phẩm cho Member
         if ($this->mode === 'BUY_SYSTEM_PRODUCT') {
@@ -161,10 +162,10 @@ trait OrderTrait
                 ->limit($order->qty)
                 ->pluck('id');
 
-            
+
             MemberProduct::whereIn('id', $updatedRecords)
                 ->update([
-                    'member_id' => $order->member_id,
+                    'member_id'  => $order->member_id,
                     'created_at' => now()
                 ]);
 
@@ -181,26 +182,13 @@ trait OrderTrait
 
     public function completeOrder($order)
     {
-        // Lấy tùy chọn % hoa hồng hệ thống chia cho Master
-        $systemDiscountRatio = FacadesMasterPage::page()->discount_ratio ?? 0;
-
-        // Lấy tùy chọn % hoa hồng Master chia cho Network
-        $masterDiscountRatio = Option::where('name', OptionName::DISCOUNT_RATIO)->where('page_id', $order->page_id)->first()->value ?? 0;
-
-        // 55% doanh thu sẽ về System Wallet
-        $totalForSystem = $order->total * (100 - (float)$systemDiscountRatio) / 100;
-
-        // 45% doanh thu sẽ về Master Wallet
-        $totalForMaster = $order->total * ((float)$systemDiscountRatio) / 100;
-
-        // Từ 45% doanh thu nhận về, trích ra một phần theo cài đặt để chia hoa hồng cho member
-        $discountedForNetworkMember = $totalForMaster * (float)$masterDiscountRatio / 100;
+        $revenue = $this->distributeRevenue($order->total, $order->page_id);
 
         // Lưu lịch sử thay đổi Point vào Wallet
         // Cộng 45% Point vào System Wallet
-        $transaction = $this->mWallet->newInstance()->insert((object)[
+        $this->mWallet->newInstance()->insert((object)[
             'owner_type'      => WalletOwnerType::SYSTEM,
-            'point'           => $totalForSystem,
+            'point'           => $revenue['for_system'],
             'source'          => WalletSource::GET_FROM_ORDER,
             'morph_member_id' => $order->member_id,
             'morph_type'      => WalletTransactionType::ORDER,
@@ -211,7 +199,7 @@ trait OrderTrait
         $transaction = $this->mWallet->newInstance()->insert((object)[
             'owner_id'        => $order->page_id,
             'owner_type'      => WalletOwnerType::MASTER,
-            'point'           => $totalForMaster,
+            'point'           => $revenue['for_master'],
             'source'          => WalletSource::GET_FROM_ORDER,
             'morph_member_id' => $order->member_id,
             'morph_type'      => WalletTransactionType::ORDER,
@@ -219,11 +207,63 @@ trait OrderTrait
         ]);
 
         // Share commissions point for member
-        $this->shareCommission($order, $transaction, $discountedForNetworkMember);
+        $this->shareCommission($order, $transaction, $revenue['for_network']);
 
         // Lưu thông tin product thuộc về member
         // Với trạng thái "Get New" hoặc "Extend"
         $this->handleMemberProduct($order);
+
+        // Kiểm tra nếu Master Page này đã cài đặt phần Point dư còn lại sẽ chuyển về cho System
+        $this->transferSurplusPointToSystem($order, $revenue['for_network']);
+    }
+
+    /**
+     * Kiểm tra nếu Master Page này đã cài đặt phần Point dư còn lại sẽ chuyển về cho System
+     * Point dư: là số point Master Page chia cho Network còn thừa do số cấp của Network không đạt đến tối đa theo cài đặt
+     * Ví dụ: Master Page cài đặt tối đa 10 cấp, nhưng Network hiện tại chỉ có 6 cấp thì số tiền thừa cho 4 cấp còn lại sẽ trả về System
+     * thay vì thuộc về Master Page như mặc định
+     */
+    public function transferSurplusPointToSystem($order, $revenueForNetwork)
+    {
+        if (FacadesMasterPage::page()->network_surplus_points_recipient === NetworkSurplusPointsRecipient::MASTER_PAGE->value) {
+            // Tổng số Point dành cho Network
+            $revenueForNetwork;
+
+            // Tổng số Point đã chia thành công cho Network
+            $revenueSharedToNetwork = $this->mWallet
+                ->where('owner_id', $order->page_id)
+                ->where('owner_type', WalletOwnerType::MASTER)
+                ->where('source', WalletSource::SEND_COMMISSION)
+                ->where('morph_type', WalletTransactionType::ORDER)
+                ->where('morph_id', $order->id)
+                ->sum('point');
+
+            // Số tiền thừa hoàn về cho System
+            $surplusPoint = $revenueForNetwork - abs($revenueSharedToNetwork ?? 0);
+
+            // Chuyển tiền về System
+            // 1. Trừ tiền trong Master Wallet
+            // Cộng 100% Point vào Master Wallet
+            $this->mWallet->newInstance()->insert((object)[
+                'owner_id'        => $order->page_id,
+                'owner_type'      => WalletOwnerType::MASTER,
+                'point'           => -$surplusPoint,
+                'source'          => WalletSource::SEND_SURPLUS,
+                'morph_member_id' => $order->member_id,
+                'morph_type'      => WalletTransactionType::ORDER,
+                'morph_id'        => $order->id,
+            ]);
+
+            // 2. Cộng tiền vào System Wallet
+            $this->mWallet->newInstance()->insert((object)[
+                'owner_type'      => WalletOwnerType::SYSTEM,
+                'point'           => $surplusPoint,
+                'source'          => WalletSource::GET_SURPLUS,
+                'morph_member_id' => $order->member_id,
+                'morph_type'      => WalletTransactionType::ORDER,
+                'morph_id'        => $order->id,
+            ]);
+        }
     }
 
     /**
@@ -234,13 +274,13 @@ trait OrderTrait
     public function completeMasterPageProductOrder($order)
     {
         // Lấy tùy chọn % hoa hồng Master chia cho Network
-        $masterDiscountRatio = Option::where('name', OptionName::DISCOUNT_RATIO)->where('page_id', $order->page_id)->first()->value ?? 0;
+        $networkDiscountRatio = Option::where('name', OptionName::DISCOUNT_RATIO)->where('page_id', $order->page_id)->first()->value ?? 0;
 
         // 100% doanh thu sẽ về Master Wallet
         $totalForMaster = $order->total;
 
         // Từ doanh thu nhận về, trích ra một phần theo cài đặt để chia hoa hồng cho member
-        $discountedForNetworkMember = $totalForMaster * (float)$masterDiscountRatio / 100;
+        $discountedForNetworkMember = $totalForMaster * (float)$networkDiscountRatio / 100;
 
         // Cộng 100% Point vào Master Wallet
         $transaction = $this->mWallet->newInstance()->insert((object)[

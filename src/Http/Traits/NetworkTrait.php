@@ -3,6 +3,7 @@
 namespace MystNov\Core\Http\Traits;
 
 use MystNov\Core\Enums\OptionName;
+use MystNov\Core\Models\MasterPage;
 use MystNov\Core\Models\Member;
 use MystNov\Core\Models\Option;
 
@@ -112,25 +113,42 @@ trait NetworkTrait
         return $networkPresenters;
     }
 
-    public function handleCommissionPoint($total, $pageId)
+    public function distributeRevenue($total, $pageId)
     {
-        $systemDiscountRatio = Option::where('name', OptionName::DISCOUNT_RATIO->value)->where('page_id', null)->first()->value ?? null;
-        $masterDiscountRatio = Option::where('name', OptionName::DISCOUNT_RATIO->value)->where('page_id', $pageId)->first()->value ?? null;
+        $masterPage = MasterPage::find($pageId);
+
+        // Chiết khấu mặc định do System cài đặt chung cho tất cả Master Page (default: 45%)
+        $defaultDiscountRatio = Option::where('name', OptionName::DISCOUNT_RATIO->value)->where('page_id', null)->first()->value ?? 0;
+
+        // Chiết khấu được cài đặt riêng cho Master Page (default: 45%)
+        $masterDiscountRatio = $masterPage->discount_ratio;
+
+        // Chiết khấu được Master Page cài đặt cho Network của họ (default: 30% trong tổng 45% của Master Page)
+        $networkDiscountRatio = Option::where('name', OptionName::DISCOUNT_RATIO->value)->where('page_id', $pageId)->first()->value ?? 0;
+
+        // Chiết khấu của Master Page ưu tiên lấy theo cài đặt riêng của Master Page
+        // Nếu không có cài đặt riêng thì áp dụng cài đặt chung
+        $masterDiscountRatio = $masterDiscountRatio ?? $defaultDiscountRatio;
 
         $revenue = [
-            'system_discount_ratio'  => 100 - $systemDiscountRatio,
-            'master_discount_ratio'  => $systemDiscountRatio,
-            'network_discount_ratio' => $masterDiscountRatio,
+            // A. Mức point (%) mà System sẽ nhận được
+            'system_discount_ratio'  => 100 - $masterDiscountRatio,
+
+            // B. Mức point (%) mà Master Page sẽ nhận được
+            'master_discount_ratio'  => $masterDiscountRatio,
+
+            // C. Mức point (%) mà Master Page dành ra từ B để chia hoa hồng cho Network của họ
+            'network_discount_ratio' => $networkDiscountRatio,
         ];
 
         // 55% doanh thu sẽ về System Wallet
-        $revenue['for_system'] = $total * (100 - (float)$systemDiscountRatio) / 100;
+        $revenue['for_system'] = $total * (100 - (float)$masterDiscountRatio) / 100;
 
         // 45% doanh thu sẽ về Master Wallet
-        $revenue['for_master'] = $total * (float)$systemDiscountRatio / 100;
+        $revenue['for_master'] = $total * (float)$masterDiscountRatio / 100;
 
         // Từ 45% doanh thu nhận về, trích ra một phần theo cài đặt để chia hoa hồng cho member
-        $revenue['for_network'] = $revenue['for_master'] * (float)$masterDiscountRatio / 100;
+        $revenue['for_network'] = $revenue['for_master'] * (float)$networkDiscountRatio / 100;
 
         return $revenue;
     }
