@@ -225,10 +225,7 @@ trait OrderTrait
      */
     public function transferSurplusPointToSystem($order, $revenueForNetwork)
     {
-        if (FacadesMasterPage::page()->network_surplus_points_recipient === NetworkSurplusPointsRecipient::MASTER_PAGE->value) {
-            // Tổng số Point dành cho Network
-            $revenueForNetwork;
-
+        if (FacadesMasterPage::page()->network_surplus_points_recipient === NetworkSurplusPointsRecipient::SYSTEM->value) {
             // Tổng số Point đã chia thành công cho Network
             $revenueSharedToNetwork = $this->mWallet
                 ->where('owner_id', $order->page_id)
