@@ -6,14 +6,12 @@ enum BinancePayReceiveMethod: string
 {
     case EMAIL = 'email';
     case BINANCE_ID = 'binanceId';
-    case PAY_ID = 'payId';
 
     public function label(): string
     {
         return match($this) {
             self::EMAIL      => 'Email / Phone',
             self::BINANCE_ID => 'Binance ID',
-            self::PAY_ID     => 'Pay ID',
         };
     }
 

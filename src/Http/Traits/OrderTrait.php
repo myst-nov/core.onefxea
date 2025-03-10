@@ -240,7 +240,6 @@ trait OrderTrait
 
             // Chuyển tiền về System
             // 1. Trừ tiền trong Master Wallet
-            // Cộng 100% Point vào Master Wallet
             $this->mWallet->newInstance()->insert((object)[
                 'owner_id'        => $order->page_id,
                 'owner_type'      => WalletOwnerType::MASTER,
