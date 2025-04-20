@@ -41,6 +41,14 @@ class MemberProduct extends Model
     }
 
     /**
+     * Belong to linked account
+     */
+    public function linkedAccount()
+    {
+        return $this->hasOne(LinkedAccount::class, 'id', 'linked_account_id');
+    }
+
+    /**
      * -------------------------------------------------------
      * Attributes
      * -------------------------------------------------------
