@@ -23,4 +23,14 @@ class Network extends Model
     ];
 
     public $timestamps = false;
+
+    public function referrer()
+    {
+        return $this->belongsTo(Member::class, 'member_id');
+    }
+
+    public function referred()
+    {
+        return $this->belongsTo(Member::class, 'relate_member_id');
+    }
 }

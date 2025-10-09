@@ -163,6 +163,18 @@ class Member extends Authenticatable implements MustVerifyEmail
         return $this->hasOne(ShareHoldingTransaction::class, 'member_id', 'id')->desc();
     }
 
+    // Quan hệ: những người được mình giới thiệu (F1)
+    public function referrals()
+    {
+        return $this->hasMany(Network::class, 'member_id');
+    }
+
+    // Quan hệ: người giới thiệu mình
+    public function referredBy()
+    {
+        return $this->hasOne(Network::class, 'relate_member_id');
+    }
+
     /**
      * ------------------------------------------
      * Funcs

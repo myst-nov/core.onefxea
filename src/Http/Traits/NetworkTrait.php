@@ -152,4 +152,28 @@ trait NetworkTrait
 
         return $revenue;
     }
+
+    /**
+     * Lấy toàn bộ cây referral của một member
+     */
+    public function getReferralTree(Member $member, $level = 1)
+    {
+        $tree = [];
+
+        // Lấy tất cả F1
+        $directReferrals = $member->referrals()->with('referred')->get();
+
+        foreach ($directReferrals as $ref) {
+            $childMember = $ref->referred;
+
+            $tree[] = [
+                'id'    => $childMember->id,
+                'name'  => $childMember->name,
+                'level' => $level,
+                'children' => $this->getReferralTree($childMember, $level + 1)
+            ];
+        }
+
+        return $tree;
+    }
 }
