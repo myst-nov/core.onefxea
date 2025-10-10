@@ -3,6 +3,7 @@
 namespace MystNov\Core\Http\Traits;
 
 use MystNov\Core\Enums\OptionName;
+use MystNov\Core\Models\CommissionRate;
 use MystNov\Core\Models\MasterPage;
 use MystNov\Core\Models\Member;
 use MystNov\Core\Models\Option;
@@ -23,7 +24,7 @@ trait NetworkTrait
         $this->pageId = $member->page_id;
         $networkMembers = $this->mNetwork->where('member_id', $memberId)->get();
 
-        $this->maxNetworkLevel = Option::where('name', OptionName::MAX_COMMISSION_LEVEL)->where('page_id', $this->pageId)->first()->value ?? config('define.max_network_level');
+        $this->maxNetworkLevel = CommissionRate::where('page_id', $this->pageId)->whereNull('referrer_id')->max('level') ?? 0;
 
         return $this->loopNetworkMember($networkMembers);
     }
@@ -64,7 +65,7 @@ trait NetworkTrait
             return $presenters;
         }
 
-        $this->maxNetworkLevel = Option::where('name', OptionName::MAX_COMMISSION_LEVEL)->where('page_id', $member->page_id)->first()->value ?? config('define.max_network_level');
+        $this->maxNetworkLevel = CommissionRate::where('page_id', $member->page_id)->whereNull('referrer_id')->max('level') ?? 0;
 
         if ($level > $this->maxNetworkLevel) {
             return $presenters;
@@ -86,10 +87,10 @@ trait NetworkTrait
         $networkPresenters = [];
 
         $presenterIds = $this->getPresenterNetwork($order->member_id);
-        $maxNetworkLevel = Option::where('name', OptionName::MAX_COMMISSION_LEVEL)->where('page_id', $order->page_id)->first()->value ?? config('define.max_network_level');
+        $this->maxNetworkLevel = CommissionRate::where('page_id', $order->page_id)->whereNull('referrer_id')->max('level') ?? 0;
         if (count($presenterIds) > 0) {
             foreach ($presenterIds as $key => $presenterId) {
-                if ($key >= $maxNetworkLevel) {
+                if ($key >= $this->maxNetworkLevel) {
                     break;
                 }
 

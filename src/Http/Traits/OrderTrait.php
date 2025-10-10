@@ -12,6 +12,7 @@ use MystNov\Core\Enums\PointOrderSource;
 use MystNov\Core\Enums\WalletOwnerType;
 use MystNov\Core\Enums\WalletSource;
 use MystNov\Core\Enums\WalletTransactionType;
+use MystNov\Core\Models\CommissionRate;
 use MystNov\Core\Models\Member;
 use MystNov\Core\Models\MemberProduct;
 use MystNov\Core\Models\Option;
@@ -22,16 +23,29 @@ trait OrderTrait
     public function shareCommission($order, $transaction, $discountedPoint)
     {
         $presenterIds = $this->getPresenterNetwork($order->member_id);
-        $maxNetworkLevel = Option::where('name', OptionName::MAX_COMMISSION_LEVEL)->where('page_id', $order->page_id)->first()->value ?? config('define.max_network_level');
+        $maxNetworkLevel = CommissionRate::where('page_id', $order->page_id ?? null)->whereNull('referrer_id')->max('level') ?? 0;
+        $sharedPoint = 0;
         if (count($presenterIds) > 0) {
             foreach ($presenterIds as $key => $presenterId) {
                 if ($key >= $maxNetworkLevel) {
                     break;
                 }
-
-                $commissionPercent = Option::where('name', 'commission_percent_f' . $key + 1)->where('page_id', $order->page_id ?? null)->first()->value ?? null;
+                
+                // Lấy phần trăm hoa hồng tương ứng với cấp độ
+                // Nếu thành viên cấp trên trong mạng lưới có cài đặt riêng thì lấy cài đặt riêng
+                // Nếu không có thì lấy theo cài đặt mặc định của Page
+                $commissionPercent = $this->getApplicableRate($presenterId, $order->page_id, $key + 1);
+                if ($commissionPercent <= 0) {
+                    continue; // Nếu không có tỷ lệ hoa hồng, bỏ qua
+                }
 
                 $commissionPoints = $discountedPoint * ((float)$commissionPercent / 100);
+                $sharedPoint += $commissionPoints;
+                // Nếu số điểm chia hoa hồng vượt quá số điểm được trích ra để chia sẻ
+                // thì dừng việc chia hoa hồng
+                if ($sharedPoint > $discountedPoint) {
+                    break;
+                }
 
                 // Save commission point history
                 // Bỏ qua phần này
@@ -78,6 +92,38 @@ trait OrderTrait
                 }
             }
         }
+    }
+
+    /**
+     * Tra cứu tỷ lệ hoa hồng áp dụng (Ưu tiên Thủ Công -> Mặc Định).
+     *
+     * @param $referrerId ID người nhận hoa hồng
+     * @param int $level Cấp độ (1=F1, 2=F2,...)
+     * @return float
+     */
+    protected function getApplicableRate($referrerId, $pageId, int $level): float
+    {
+        // 1. Tra cứu Thủ Công (Cá nhân)
+        $manualRate = CommissionRate::where('referrer_id', $referrerId)
+                                    ->where('level', $level)
+                                    ->where('page_id', $pageId)
+                                    ->first();
+
+        if ($manualRate) {
+            return (float) $manualRate->rate_percentage; // Ưu tiên Thủ Công
+        }
+
+        // 2. Tra cứu Mặc Định (Toàn Hệ Thống)
+        $defaultRate = CommissionRate::whereNull('referrer_id')
+                                     ->where('level', $level)
+                                     ->where('page_id', $pageId)
+                                     ->first();
+
+        if ($defaultRate) {
+            return (float) $defaultRate->rate_percentage;
+        }
+        
+        return 0.00; // Không có cài đặt hoa hồng cho cấp độ này
     }
 
     public function handleMemberProduct($order)
