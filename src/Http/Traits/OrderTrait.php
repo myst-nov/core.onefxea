@@ -44,7 +44,13 @@ trait OrderTrait
                 // Nếu số điểm chia hoa hồng vượt quá số điểm được trích ra để chia sẻ
                 // thì dừng việc chia hoa hồng
                 if ($sharedPoint > $discountedPoint) {
-                    break;
+                    // Chia số điểm còn lại (discountedPoint - (sharedPoint - commissionPoints)) cho presenter hiện tại
+                    $commissionPoints -= ($sharedPoint - $discountedPoint);
+
+                    // Nếu vẫn nhỏ hơn 0 thì dừng việc chia hoa hồng
+                    if ($commissionPoints < 0) {
+                        break;
+                    }
                 }
 
                 // Save commission point history
